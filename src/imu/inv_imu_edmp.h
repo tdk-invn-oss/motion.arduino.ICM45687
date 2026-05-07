@@ -197,6 +197,13 @@ typedef struct {
 	uint16_t                triple_tap_timing;
 } inv_imu_edmp_tap_data_t;
 
+/** @brief GAF mounting-matrix patch control */
+typedef enum {
+	INV_IMU_EDMP_GAF_PATCH_OVER_SIF  = 0x00,
+	INV_IMU_EDMP_GAF_PATCH_OVER_VVD  = 0x01,
+	INV_IMU_EDMP_GAF_PATCH_OVER_FIFO = 0x02,
+} inv_imu_edmp_gaf_patch_control_t;
+
 /** @brief IMU GAF inputs parameters definition
  *  @note Refer to the datasheet for details on how to configure these parameters.
  */
@@ -309,6 +316,15 @@ int inv_imu_edmp_set_frequency(inv_imu_device_t *s, const dmp_ext_sen_odr_cfg_ap
  *  @return       0 on success, negative value on error or if EDMP is enabled.
  */
 int inv_imu_edmp_init(inv_imu_device_t *s);
+
+/** @brief Load patch to improve AID performances for higher ODR
+ *  @param[in] s Pointer to device.
+ *  @return      0 on success, negative value on error.
+ *  @note
+ *  This function enables the patch after it was loaded, the only way to disable it requires clearing the SRAM.
+ *  Threshold parameters used for WoM detection are configured using @sa inv_imu_adv_configure_wom.
+ */
+int inv_imu_edmp_load_aid_patch(inv_imu_device_t *s);
 
 /** @brief Recompute EDMP algorithms internal decimator based on new EDMP output Data Rate
            configured with `inv_imu_edmp_set_frequency`.
@@ -446,6 +462,20 @@ int inv_imu_edmp_set_gaf_gyr_bias(inv_imu_device_t *s, const int16_t gyr_bias_q1
  *  @warning                This must be called before inv_imu_edmp_set_gaf_parameters().
  */
 int inv_imu_edmp_set_gaf_acc_bias(inv_imu_device_t *s, const int32_t acc_bias_q16[3]);
+
+/** @brief Load patch for proper mounting-matrix handling by GAF algorithm
+ *  @param[in] s             Pointer to device.
+ *  @param[in] patch_control Location where patch shall be loaded, also defines which image shall be loaded
+ *  @return                  0 on success, negative value on error.
+ *  @warning                 This function does not take into consideration concurrency between algorithm, caller must ensure the use-case is valid.
+ *  @note                    When writing over FIFO space (requiring the FIFO depth to be 1.75 kB instead of 2 kB), a sanity check is done so caller must reduce FIFO depth prior to this call.
+ *  @details
+ *  Due to the filtering logic implemented in edmp, if the mounting-matrix modifies X, it may cause invalid samples
+ *  to be fed into the algorithm, causing side-effects. This API loads the patch that properly verifies that a given
+ *  sample is truly valid. It isn't required to use this API if the mounting-matrix keeps X as +X, or if it makes it
+ *  +Y or +Z (basically when using identity or doing a simple axis remap logic where another axis is reported on X).
+ */
+int inv_imu_edmp_load_gaf_patch(inv_imu_device_t *s, inv_imu_edmp_gaf_patch_control_t patch_control);
 
 /** @brief  Initialize APEX SIF configuration with user settings.
  *  @param[in]  s    Pointer to device.

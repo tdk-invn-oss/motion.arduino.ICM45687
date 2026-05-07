@@ -19,6 +19,9 @@
 #include "imu/inv_imu_edmp_defs.h"
 #include "imu/inv_imu_edmp_vvd.h"
 #include "imu/inv_imu_edmp_algo_defs.h"
+#include "imu/inv_imu_edmp_patches_defs.h"
+#include "imu/inv_imu_edmp_ram_wom_defs.h"
+#include "imu/inv_imu_edmp_gaf_patches_defs.h"
 
 #define EDMP_ROM_START_ADDR_IRQ0 EDMP_ROM_BASE
 #define EDMP_ROM_START_ADDR_IRQ1 (EDMP_ROM_BASE + 0x04)
@@ -59,6 +62,43 @@ int inv_imu_edmp_init(inv_imu_device_t *s)
 
 	/* Init will eventually depend on the usecase, it can now proceed */
 	status |= inv_imu_edmp_recompute_decimation(s);
+
+	return status;
+}
+
+int inv_imu_edmp_load_aid_patch(inv_imu_device_t *s)
+{
+	int             status = INV_IMU_OK;
+	edmp_apex_enx_t cfg;
+	/* This WoM implementation compares the current accelerometer
+	 * sample with the previous one (without any averaging/filtering)
+	 * and will identify a WoM as soon as one of X/Y/Z axis has gone
+	 * beyond this threshold (OR setting).
+	 */
+	static uint8_t  wom_patch_img[] = {
+#include "imu/edmp_ram_wom_image.h"
+	};
+	uint32_t patch_key;
+
+	/* DMP cannot be configured if it is running, hence make sure AID APEX algorithm is off */
+	status |= inv_imu_read_reg(s, EDMP_APEX_EN0, 2, (uint8_t *)&cfg);
+	if (cfg.edmp_apex_en0.aid_en && cfg.edmp_apex_en1.edmp_enable)
+		return INV_IMU_ERROR;
+
+	/* To improve performances at higher ODR, WoM needs to be decimated.
+	 * WoM threshold used by this image is configured by `inv_imu_adv_configure_wom`,
+	 * it is therefore the same as the hardware implementation.
+	 * This decimation is handled by a dedicated SRAM image that
+	 * feeds the output of this software WoM as input to AID.
+	 */
+	(void)memcpy(&patch_key, &wom_patch_img[RAM_WOM_IMG_PATCH_KEY_OFFSET], sizeof(patch_key));
+	/* 1- Load the image */
+	status |= inv_imu_write_sram(s, EDMP_RAM_WOM_IMG_DATA_BASE, sizeof(wom_patch_img), wom_patch_img);
+	/* 2- Enable the patch point entry */
+	status |= inv_imu_write_sram(s, EDMP_RAM_FEATURE_PRGM_RAM_BASE, sizeof(patch_key), (uint8_t *)&patch_key);
+	/* 3- Lastly, enable the ram extension feature (direct-access register) to allow for the WoM SW execution */
+	cfg.edmp_apex_en1.feature3_en = INV_IMU_ENABLE;
+	status |= inv_imu_write_reg(s, EDMP_APEX_EN1, 1, (uint8_t *)&cfg.edmp_apex_en1);
 
 	return status;
 }
@@ -673,6 +713,62 @@ int inv_imu_edmp_set_gaf_gyr_bias(inv_imu_device_t *s, const int16_t gyr_bias_q1
 	status |= INV_IMU_WRITE_EDMP_SRAM(s, EDMP_GAF_GYR_BIAS_TEMPERATURE_DEG_Q16,
 	                                  (uint8_t *)&temperature_q16);
 
+	return status;
+}
+
+int inv_imu_edmp_load_gaf_patch(inv_imu_device_t *s, inv_imu_edmp_gaf_patch_control_t patch_control)
+{
+	int             status = INV_IMU_OK;
+	accel_config0_t accel_config0;
+	gyro_config0_t  gyro_config0;
+	uint32_t        patch_key;
+	fifo_config0_t  fifo_config0;
+	static uint8_t  patch_over_sif[] = {
+#include "imu/edmp_prgm_ram_gaf_patch.h"
+	};
+	static uint8_t  patch_over_vvd[] = {
+#include "imu/edmp_prgm_ram_gaf_patch_over_vvd.h"
+	};
+	static uint8_t  patch_over_fifo[] = {
+#include "imu/edmp_prgm_ram_gaf_patch_over_fifo.h"
+	};
+
+	status |= inv_imu_read_reg(s, ACCEL_CONFIG0, 1, (uint8_t *)&accel_config0);
+	status |= inv_imu_read_reg(s, GYRO_CONFIG0, 1, (uint8_t *)&gyro_config0);
+
+	if (accel_config0.accel_odr == gyro_config0.gyro_odr) {
+		/* In case accel and gyro report at same ODR, no need for patching */
+		return status;
+	}
+
+	switch(patch_control) {
+	case INV_IMU_EDMP_GAF_PATCH_OVER_SIF:
+		/* It is the caller responsibility to make sure SIF isn't used */
+		status |= inv_imu_write_sram(s, EDMP_RAM_GAF_PATCHES_IMG_PRGM_BASE, sizeof(patch_over_sif), patch_over_sif);
+		(void)memcpy(&patch_key, patch_over_sif, sizeof(patch_key));
+		status |= inv_imu_write_sram(s, EDMP_INVN_ALGO_GAF_PATCH_POINT_CHUNK0, 4, (const uint8_t * )&patch_key);
+		break;
+	case INV_IMU_EDMP_GAF_PATCH_OVER_VVD:
+		/* It is the caller responsibility to make sure VVD isn't used */
+		status |= inv_imu_write_sram(s, EDMP_RAM_GAF_PATCHES_IMG_OVER_VVD_PRGM_BASE, sizeof(patch_over_vvd), patch_over_vvd);
+		(void)memcpy(&patch_key, patch_over_vvd, sizeof(patch_key));
+		status |= inv_imu_write_sram(s, EDMP_INVN_ALGO_GAF_PATCH_POINT_CHUNK0, 4, (const uint8_t * )&patch_key);
+		break;
+	case INV_IMU_EDMP_GAF_PATCH_OVER_FIFO:
+		status |= inv_imu_read_reg(s, FIFO_CONFIG0, 1, (uint8_t *)&fifo_config0);
+		if (FIFO_CONFIG0_FIFO_DEPTH_APEX > (fifo_config0_fifo_depth_t)fifo_config0.fifo_depth) {
+			status |= inv_imu_write_sram(s, EDMP_RAM_GAF_PATCHES_IMG_OVER_FIFO_PRGM_BASE, sizeof(patch_over_fifo), patch_over_fifo);
+			(void)memcpy(&patch_key, patch_over_fifo, sizeof(patch_key));
+			status |= inv_imu_write_sram(s, EDMP_INVN_ALGO_GAF_PATCH_POINT_CHUNK0, 4, (const uint8_t * )&patch_key);
+		} else {
+			/* As we are eating up FIFO space, we must ensure that we can according to the current FIFO depth */
+			status |= INV_IMU_ERROR_EDMP_RAM_KO;
+		}
+		break;
+	default:
+		status |= INV_IMU_ERROR_BAD_ARG;
+	}
+	
 	return status;
 }
 

@@ -409,6 +409,10 @@ This method set the parameter for voice vibration detection(VVD) in APEX and sta
 
 # Available Sketches
 
+**TwoIMU_FIFO_Interrupt**
+
+This sketch initializes the two ICM456xx sensors with the I2C interface and interrupt pin D2 and D3, and starts logging raw sensor data from eash IMU FIFO. Sensor data can be monitored on Serial monitor or Serial plotter
+
 **AUX_VocalVibDet**
 
 This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, and starts the APEX voice detection. A voice detetion message is displayed on the Serial monitor when detect the voice.
