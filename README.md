@@ -248,6 +248,26 @@ It return 0 on success.
       Serial.println(gaf_data.grv_quat_q30[3]);
 ```
 
+**int getGaf_GRVData(float& quatW,float& quatX,float& quatY,float& quatZ);**
+
+This method reads the GAF algorithm GRV Quaternions stored in the FIFO
+It return 0 on success.
+
+```C++
+      float W, X, Y, Z;
+      IMU.getGaf_GRVData(W, X, Y, Z);
+      // Format data for Serial Plotter or TDK SensorStage UI
+      Serial.print("qw:");
+      Serial.println(W);
+      Serial.print("qx:");
+      Serial.println(X);
+      Serial.print("qy:");
+      Serial.println(Y);
+      Serial.print("qz:");
+      Serial.println(Z);
+```
+
+
 **inv_imu_sensor_data_t**
 
 This structure is used by the ICM456xx driver to return raw sensor data. Available data is:
@@ -415,7 +435,7 @@ This sketch initializes the two ICM456xx sensors with the I2C interface and inte
 
 **AUX_VocalVibDet**
 
-This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, and starts the APEX voice detection. A voice detetion message is displayed on the Serial monitor when detect the voice.
+This sketch initializes the ICM456xx with the I2C interface and interrupt pin D2, and starts the APEX voice detection. A voice detetion message is displayed on the Serial monitor when detect the voice.
 
 **AUX_PassThrough**
 
@@ -435,32 +455,32 @@ This sketch initializes the ICM456xx with the SPI interface, and starts logging 
 
 **FIFO_Interrupt**
 
-This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, and starts logging raw sensor data from IMU FIFO. Sensor data can be monitored on Serial monitor or Serial plotter
+This sketch initializes the ICM456xx with the I2C interface and interrupt pin D2, and starts logging raw sensor data from IMU FIFO. Sensor data can be monitored on Serial monitor or Serial plotter
 
 **GAF_orientation**
 
-This sketch initializes the ICM456xx with the I2C interface, interrupt on PIN2, and GAF algorithm. GAF algorithm uses Gyrometer and Accelerometer data to compute the board orientation.
+This sketch initializes the ICM456xx with the I2C interface, interrupt on pin D2, and GAF algorithm. GAF algorithm uses Gyrometer and Accelerometer data to compute the board orientation.
 This sketch logs GAF computed orientation as Quaternions. Quaternions can be monitored on Serial monitor or Serial plotter
 
 **APEX_WakeOnMotion**
 
-This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, and starts the APEX Wake on Motion. A Wake-up message is displayed on the Serial monitor when the sensor detects movement.
+This sketch initializes the ICM456xx with the I2C interface and interrupt pin D2, and starts the APEX Wake on Motion. A Wake-up message is displayed on the Serial monitor when the sensor detects movement.
 
 **APEX_Tap**
 
-This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, and starts the APEX Tap. A Tap report is displayed on the Serial monitor each time a tap is detected.
+This sketch initializes the ICM456xx with the I2C interface and interrupt pin D2, and starts the APEX Tap. A Tap report is displayed on the Serial monitor each time a tap is detected.
 
 **APEX_RaiseToWake**
 
-This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, and starts the APEX Raise to Wake algorithm. Print "Wake" or "Sleep" message on the Serial monitor when a Raise to Wake event is detected.
+This sketch initializes the ICM456xx with the I2C interface and interrupt pin D2, and starts the APEX Raise to Wake algorithm. Print "Wake" or "Sleep" message on the Serial monitor when a Raise to Wake event is detected.
 
 **APEX_Events**
 
-This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, and starts the APEX Tap, LowG, HighG, Freefall and Raise to wake. APEX status is displayed on the Serial monitor.
+This sketch initializes the ICM456xx with the I2C interface and interrupt pin D2, and starts the APEX Tap, LowG, HighG, Freefall and Raise to wake. APEX status is displayed on the Serial monitor.
 
 **MicroROS_Publisher**
 
-This sketch initializes the ICM456xx with the I2C interface and interrupt PIN2, initializes also microROS Arduino environment and starts logging Gyrometer and Accelerometer data from IMU registers and computed orientation as Quaternions from IMU FIFO. Sensor data are published in IMU structure. For more information, refer to MicroROS_README.md.
+This sketch initializes the ICM456xx with the I2C interface and interrupt pin D2, initializes also microROS Arduino environment and starts logging Gyrometer and Accelerometer data from IMU registers and computed orientation as Quaternions from IMU FIFO. Sensor data are published in IMU structure. For more information, refer to MicroROS_README.md.
 
 # IMU data monitoring
 
